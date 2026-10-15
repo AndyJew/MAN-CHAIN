@@ -1,52 +1,115 @@
 
-import unittest
+import hashlib
+import json
+import time
 
-from blockchain import Blockchain
+
+class Block:
+    def __init__(self, index, timestamp, data, previous_hash):
+        self.index = index
+        self.timestamp = timestamp
+        self.data = data
+        self.previous_hash = previous_hash
+        self.hash = self.calculate_hash()
+
+    def calculate_hash(self):
+        content = {
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "data": self.data,
+            "previous_hash": self.previous_hash,
+        }
+
+        encoded = json.dumps(
+            content,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+        return hashlib.sha256(encoded).hexdigest()
+
+    def to_dict(self):
+        return {
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "data": self.data,
+            "previous_hash": self.previous_hash,
+            "hash": self.hash,
+        }
 
 
-class TestBlockchain(unittest.TestCase):
-    def setUp(self):
-        self.chain = Blockchain()
+class Blockchain:
+    def __init__(self):
+        self.chain = [self.create_genesis_block()]
 
-    def test_genesis_block_exists(self):
-        self.assertEqual(len(self.chain.chain), 1)
-        self.assertTrue(self.chain.is_valid())
-
-    def test_add_block(self):
-        block = self.chain.add_block({
-            "type": "demo",
-            "message": "Hello MAN-CHAIN",
-        })
-
-        self.assertEqual(block.index, 1)
-        self.assertEqual(len(self.chain.chain), 2)
-        self.assertTrue(self.chain.is_valid())
-
-    def test_blocks_are_linked(self):
-        first = self.chain.add_block({"amount": 10})
-        second = self.chain.add_block({"amount": 20})
-
-        self.assertEqual(
-            second.previous_hash,
-            first.hash,
+    def create_genesis_block(self):
+        return Block(
+            0,
+            0,
+            {"message": "MAN-CHAIN genesis block"},
+            "0" * 64,
         )
-        self.assertTrue(self.chain.is_valid())
 
-    def test_detect_modified_data(self):
-        self.chain.add_block({"amount": 10})
+    def get_latest_block(self):
+        return self.chain[-1]
 
-        self.chain.chain[1].data["amount"] = 999
+    def add_block(self, data):
+        previous = self.get_latest_block()
 
-        self.assertFalse(self.chain.is_valid())
+        block = Block(
+            len(self.chain),
+            int(time.time()),
+            data,
+            previous.hash,
+        )
 
-    def test_detect_broken_link(self):
-        self.chain.add_block({"amount": 10})
-        self.chain.add_block({"amount": 20})
+        self.chain.append(block)
+        return block
 
-        self.chain.chain[2].previous_hash = "broken"
+    def is_valid(self):
+        for i, block in enumerate(self.chain):
+            if block.hash != block.calculate_hash():
+                return False
 
-        self.assertFalse(self.chain.is_valid())
+            if i == 0:
+                if block.previous_hash != "0" * 64:
+                    return False
+            else:
+                previous = self.chain[i - 1]
+
+                if block.previous_hash != previous.hash:
+                    return False
+
+                if block.index != previous.index + 1:
+                    return False
+
+        return True
+
+    def to_dict(self):
+        return {
+            "name": "MAN-CHAIN",
+            "version": 1,
+            "blocks": [block.to_dict() for block in self.chain],
+            "valid": self.is_valid(),
+        }
 
 
 if __name__ == "__main__":
-    unittest.main()
+    chain = Blockchain()
+
+    chain.add_block({
+        "type": "demo",
+        "message": "First MAN-CHAIN transaction",
+    })
+
+    chain.add_block({
+        "type": "demo",
+        "message": "Second MAN-CHAIN transaction",
+    })
+
+    print(json.dumps(
+        chain.to_dict(),
+        indent=2,
+        ensure_ascii=False,
+    ))

@@ -23,7 +23,7 @@ jobs:
           python-version: "3.12"
 
       - name: Run blockchain demo
-        run: python prototype/blockchain.py
+        run: python blockchain.py
 
       - name: Run blockchain tests
         run: python -m unittest discover -s prototype -p "test_*.py" -v
